@@ -17,11 +17,6 @@
     .subheader { text-align: center; margin-bottom: 1.5rem; }
     .subheader p { font-size: 14px; color: #666; }
 
-    .server-select-wrap { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
-    .server-select-wrap label { font-size: 13px; color: #666; font-weight: 500; }
-    .server-select-wrap select { font-family: 'Poppins', Arial, sans-serif; font-size: 13px; padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #1a1a2e; cursor: pointer; outline: none; }
-    .server-select-wrap select:focus { border-color: #378ADD; }
-
     .progress-wrap { height: 3px; background: #dde3ee; border-radius: 2px; margin-bottom: 20px; overflow: hidden; }
     .progress-bar { height: 100%; background: #378ADD; border-radius: 2px; transition: width 0.3s; width: 0%; }
 
@@ -48,6 +43,9 @@
 
     .server-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 13px; color: #888; }
     .server-name { color: #1a1a2e; font-weight: 500; }
+
+    .server-select { font-family: 'Poppins', Arial, sans-serif; font-size: 12px; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f5f6f8; color: #1a1a2e; cursor: pointer; outline: none; max-width: 220px; }
+    .server-select:focus { border-color: #378ADD; }
 
     .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .metric-label { font-size: 12px; color: #888; margin-bottom: 4px; }
@@ -91,14 +89,6 @@
     <p>בדיקה מול Cloudflare ומול שרתי AdPro</p>
   </div>
 
-  <div class="server-select-wrap">
-    <label>בחר שרת AdPro:</label>
-    <select id="serverSelect" onchange="onServerChange()">
-      <option value="fr1">🇫🇷 צרפת — FR1 (153.co.il)</option>
-      <option value="rbx1">🇫🇷 צרפת — RBX1 (fr-gra-speedtest.adpronet.com)</option>
-    </select>
-  </div>
-
   <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
 
   <div class="grid">
@@ -129,7 +119,7 @@
             <div class="bar-wrap"><div class="bar bar-green" id="ulBar1" style="width:0%"></div></div>
           </div>
           <div class="metric">
-            <div class="metric-label">Ping</div>
+            <div class="metric-label">Ping (ממוצע)</div>
             <div><span class="metric-val" id="ping1">—</span> <span class="metric-unit">ms</span></div>
           </div>
           <div class="metric">
@@ -153,7 +143,10 @@
         </div>
         <div class="server-row">
           <span class="score-label">שרת</span>
-          <span class="server-name" id="serverName">FR1 — צרפת</span>
+          <select class="server-select" id="serverSelect" onchange="onServerChange()">
+            <option value="fr1">🇫🇷 FR1 — צרפת (153.co.il)</option>
+            <option value="rbx1">🇫🇷 RBX1 — צרפת (adpronet.com)</option>
+          </select>
         </div>
         <div class="metrics">
           <div class="metric">
@@ -167,7 +160,7 @@
             <div class="bar-wrap"><div class="bar bar-green" id="ulBar2" style="width:0%"></div></div>
           </div>
           <div class="metric">
-            <div class="metric-label">Ping</div>
+            <div class="metric-label">Ping (ממוצע)</div>
             <div><span class="metric-val" id="ping2">—</span> <span class="metric-unit">ms</span></div>
           </div>
           <div class="metric">
@@ -219,27 +212,36 @@
 
 <script>
 const SERVERS = {
-  fr1: {
-    name: 'FR1 — צרפת',
-    backend: 'https://153.co.il/NEW-SPEED-TEST/backend'
-  },
-  rbx1: {
-    name: 'RBX1 — צרפת',
-    backend: 'https://fr-gra-speedtest.adpronet.com/backend'
-  }
+  fr1:  { name: 'FR1 — צרפת',  backend: 'https://153.co.il/NEW-SPEED-TEST/backend' },
+  rbx1: { name: 'RBX1 — צרפת', backend: 'https://fr-gra-speedtest.adpronet.com/backend' }
 };
 
 let currentServer = 'fr1';
 const TEST_DURATION = 10000;
 
+function speedToBar(mbps) {
+  if(mbps <= 0) return 0;
+  return Math.min(100, (Math.log10(mbps + 1) / Math.log10(1001)) * 100);
+}
+
+function calcPingJitter(pings) {
+  const ping = Math.round(pings.reduce((a,b)=>a+b,0) / pings.length);
+  const diffs = pings.slice(1).map((v,i) => Math.abs(v - pings[i]));
+  const jitter = diffs.length > 0
+    ? parseFloat((diffs.reduce((a,b)=>a+b,0) / diffs.length).toFixed(1))
+    : 0;
+  return {ping, jitter};
+}
+
 function onServerChange() {
   currentServer = document.getElementById('serverSelect').value;
-  document.getElementById('serverName').textContent = SERVERS[currentServer].name;
-  ['dl2','ul2','ping2','jit2','loss2','score2'].forEach(id=>{
-    document.getElementById(id).textContent='—';
+  ['dl2','ul2','ping2','jit2','loss2'].forEach(id => {
+    document.getElementById(id).textContent = '—';
   });
-  document.getElementById('packetBarWrap').style.display='none';
-  ['dlBar2','ulBar2'].forEach(id=>{ document.getElementById(id).style.width='0%'; });
+  const sc = document.getElementById('score2');
+  sc.textContent = '—'; sc.className = 'score-val';
+  document.getElementById('packetBarWrap').style.display = 'none';
+  ['dlBar2','ulBar2'].forEach(id => { document.getElementById(id).style.width = '0%'; });
   setBadge('badge2','pending');
 }
 
@@ -251,9 +253,7 @@ async function loadUserInfo() {
     document.getElementById('userISP').textContent = data.asOrganization || '—';
     document.getElementById('userLoc').textContent = [data.city, data.country].filter(Boolean).join(', ') || '—';
   } catch(e) {
-    document.getElementById('userIP').textContent = '—';
-    document.getElementById('userISP').textContent = '—';
-    document.getElementById('userLoc').textContent = '—';
+    ['userIP','userISP','userLoc'].forEach(id => { document.getElementById(id).textContent = '—'; });
   }
 }
 
@@ -268,10 +268,10 @@ function setBadge(id, state) {
 function setScore(id, ping, jitter) {
   const el = document.getElementById(id);
   let label, cls;
-  if(ping < 50 && jitter < 10){ label='מעולה'; cls='score-good'; }
-  else if(ping < 100 && jitter < 20){ label='טוב'; cls='score-good'; }
-  else if(ping < 150 && jitter < 30){ label='ממוצע'; cls='score-avg'; }
-  else { label='גרוע'; cls='score-bad'; }
+  if(ping < 50 && jitter < 10)       { label='מעולה'; cls='score-good'; }
+  else if(ping < 100 && jitter < 20) { label='טוב';   cls='score-good'; }
+  else if(ping < 150 && jitter < 30) { label='ממוצע'; cls='score-avg';  }
+  else                                { label='גרוע';  cls='score-bad';  }
   el.textContent = label;
   el.className = 'score-val ' + cls;
 }
@@ -283,16 +283,11 @@ function setProgress(pct) {
 async function measurePing(url, count=10) {
   const pings = [];
   for(let i=0;i<count;i++){
-    const t0=performance.now();
-    await fetch(url+'?_='+Date.now()+i,{cache:'no-store'});
+    const t0 = performance.now();
+    await fetch(url+'?_='+Date.now()+i, {cache:'no-store'});
     pings.push(performance.now()-t0);
   }
-  const sorted = [...pings].sort((a,b)=>a-b);
-  const mid = Math.floor(sorted.length/2);
-  const ping = Math.round(sorted.length%2 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2);
-  const diffs = pings.slice(1).map((v,i)=>Math.abs(v-pings[i]));
-  const jitter = parseFloat((diffs.reduce((a,b)=>a+b,0)/diffs.length).toFixed(1));
-  return {ping, jitter};
+  return calcPingJitter(pings);
 }
 
 async function measureDownload(url, dlId, barId, progressStart, progressEnd) {
@@ -301,7 +296,7 @@ async function measureDownload(url, dlId, barId, progressStart, progressEnd) {
   const end = start + TEST_DURATION;
   let chunk = 0;
   while(performance.now() < end) {
-    const res = await fetch(url+'&_='+Date.now()+'c'+chunk,{cache:'no-store'});
+    const res = await fetch(url+'&_='+Date.now()+'c'+chunk, {cache:'no-store'});
     const buf = await res.arrayBuffer();
     totalBytes += buf.byteLength;
     chunk++;
@@ -309,7 +304,7 @@ async function measureDownload(url, dlId, barId, progressStart, progressEnd) {
     const pct = Math.min(1, elapsed/TEST_DURATION);
     const currentDl = parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
     document.getElementById(dlId).textContent = currentDl;
-    document.getElementById(barId).style.width = Math.min(100, Math.log10(1+currentDl)/Math.log10(201)*100)+'%';
+    document.getElementById(barId).style.width = speedToBar(currentDl)+'%';
     setProgress(progressStart + pct*(progressEnd-progressStart));
     if(performance.now() >= end) break;
   }
@@ -325,19 +320,35 @@ async function measureUpload(url, ulId, barId, progressStart, progressEnd) {
   while(performance.now() < end) {
     const size = 2000000;
     const data = new Uint8Array(size);
-    await fetch(url+'?_='+Date.now()+'u'+chunk,{method:'POST',body:data,cache:'no-store'});
+    await fetch(url+'?_='+Date.now()+'u'+chunk, {method:'POST', body:data, cache:'no-store'});
     totalBytes += size;
     chunk++;
     const elapsed = performance.now()-start;
     const pct = Math.min(1, elapsed/TEST_DURATION);
     const currentUl = parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
     document.getElementById(ulId).textContent = currentUl;
-    document.getElementById(barId).style.width = Math.min(100, Math.log10(1+currentUl)/Math.log10(201)*100)+'%';
+    document.getElementById(barId).style.width = speedToBar(currentUl)+'%';
     setProgress(progressStart + pct*(progressEnd-progressStart));
     if(performance.now() >= end) break;
   }
   const elapsed = performance.now()-start;
   return parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
+}
+
+async function measurePacketLoss(url, count=20) {
+  let received = 0;
+  const requests = [];
+  for(let i=0;i<count;i++){
+    requests.push(
+      fetch(url+'?pl='+Date.now()+i, {cache:'no-store', signal: AbortSignal.timeout(3000)})
+        .then(() => { received++; })
+        .catch(() => {})
+    );
+  }
+  await Promise.all(requests);
+  const loss = parseFloat(((count-received)/count*100).toFixed(2));
+  const receivedPct = parseFloat((received/count*100).toFixed(2));
+  return {loss, receivedPct};
 }
 
 async function measureCF() {
@@ -355,73 +366,60 @@ async function measureCF() {
     setProgress(60);
     setScore('score1', ping, jitter);
   } catch(e) {
-    document.getElementById('dl1').textContent='שגיאה';
+    document.getElementById('dl1').textContent = 'שגיאה';
   }
   setBadge('badge1','done');
-}
-
-async function measurePacketLoss(url, count=20) {
-  let received = 0;
-  const requests = [];
-  for(let i=0;i<count;i++){
-    requests.push(
-      fetch(url+'?_='+Date.now()+i,{cache:'no-store'})
-        .then(()=>{ received++; })
-        .catch(()=>{})
-    );
-  }
-  await Promise.all(requests);
-  const loss = parseFloat(((count-received)/count*100).toFixed(2));
-  const receivedPct = parseFloat((received/count*100).toFixed(2));
-  return {loss, receivedPct};
 }
 
 async function measureLibreSpeed() {
   setBadge('badge2','running');
   setProgress(62);
   const backend = SERVERS[currentServer].backend;
-  document.getElementById('serverName').textContent = SERVERS[currentServer].name;
   try {
     const {ping, jitter} = await measurePing(backend+'/empty.php');
-    document.getElementById('ping2').textContent=ping;
-    document.getElementById('jit2').textContent=jitter;
+    document.getElementById('ping2').textContent = ping;
+    document.getElementById('jit2').textContent = jitter;
     setProgress(65);
     await measureDownload(backend+'/garbage.php?ckSize=100', 'dl2', 'dlBar2', 65, 83);
     setProgress(83);
-    await measureUpload(backend+'/empty.php', 'ul2', 'ulBar2', 83, 96);
-    setProgress(96);
+    await measureUpload(backend+'/empty.php', 'ul2', 'ulBar2', 83, 95);
+    setProgress(95);
     const {loss, receivedPct} = await measurePacketLoss(backend+'/empty.php');
-    document.getElementById('loss2').textContent=loss.toFixed(2);
-    document.getElementById('packetBarWrap').style.display='flex';
-    document.getElementById('packetBarWrap').style.background = loss===0 ? '#1D9E75' : loss<1 ? '#BA7517' : '#A32D2D';
-    document.getElementById('packetText').textContent='Received '+receivedPct.toFixed(2)+'%';
-    setScore('score2',ping,jitter);
+    document.getElementById('loss2').textContent = loss.toFixed(2);
+    const bar = document.getElementById('packetBarWrap');
+    bar.style.display = 'flex';
+    bar.style.background = loss === 0 ? '#1D9E75' : loss < 1 ? '#BA7517' : '#A32D2D';
+    document.getElementById('packetText').textContent = 'Received '+receivedPct.toFixed(2)+'%';
+    setScore('score2', ping, jitter);
+    setProgress(100);
   } catch(e) {
-    document.getElementById('dl2').textContent='שגיאה';
-    document.getElementById('ping2').textContent='שגיאה';
+    document.getElementById('dl2').textContent = 'שגיאה';
+    document.getElementById('ping2').textContent = 'שגיאה';
   }
   setBadge('badge2','done');
   setProgress(100);
 }
 
 async function runTest(){
-  const btn=document.getElementById('startBtn');
-  btn.disabled=true;
-  btn.textContent='הבדיקה פועלת...';
-  ['dl1','ul1','ping1','jit1','dl2','ul2','ping2','jit2','loss2'].forEach(id=>{
-    document.getElementById(id).textContent='—';
+  const btn = document.getElementById('startBtn');
+  btn.disabled = true;
+  btn.textContent = 'הבדיקה פועלת...';
+  ['dl1','ul1','ping1','jit1','dl2','ul2','ping2','jit2','loss2'].forEach(id => {
+    document.getElementById(id).textContent = '—';
   });
-  ['score1','score2'].forEach(id=>{
-    const el=document.getElementById(id); el.textContent='—'; el.className='score-val';
+  ['score1','score2'].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = '—'; el.className = 'score-val';
   });
-  document.getElementById('packetBarWrap').style.display='none';
-  ['dlBar1','ulBar1','dlBar2','ulBar2'].forEach(id=>{ document.getElementById(id).style.width='0%'; });
-  setBadge('badge1','pending'); setBadge('badge2','pending');
+  document.getElementById('packetBarWrap').style.display = 'none';
+  ['dlBar1','ulBar1','dlBar2','ulBar2'].forEach(id => { document.getElementById(id).style.width = '0%'; });
+  setBadge('badge1','pending');
+  setBadge('badge2','pending');
   setProgress(0);
   await measureCF();
   await measureLibreSpeed();
-  btn.disabled=false;
-  btn.textContent='הפעל שוב';
+  btn.disabled = false;
+  btn.textContent = 'הפעל שוב';
 }
 
 loadUserInfo();
