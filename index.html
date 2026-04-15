@@ -287,10 +287,11 @@ async function measurePing(url, count=10) {
     await fetch(url+'?_='+Date.now()+i,{cache:'no-store'});
     pings.push(performance.now()-t0);
   }
-  const ping = Math.round(Math.min(...pings));
   const sorted = [...pings].sort((a,b)=>a-b);
-  const mid = sorted.map((v,i)=>Math.abs(v-sorted[Math.max(0,i-1)]));
-  const jitter = parseFloat((mid.reduce((a,b)=>a+b,0)/mid.length).toFixed(1));
+  const mid = Math.floor(sorted.length/2);
+  const ping = Math.round(sorted.length%2 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2);
+  const diffs = pings.slice(1).map((v,i)=>Math.abs(v-pings[i]));
+  const jitter = parseFloat((diffs.reduce((a,b)=>a+b,0)/diffs.length).toFixed(1));
   return {ping, jitter};
 }
 
@@ -308,7 +309,7 @@ async function measureDownload(url, dlId, barId, progressStart, progressEnd) {
     const pct = Math.min(1, elapsed/TEST_DURATION);
     const currentDl = parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
     document.getElementById(dlId).textContent = currentDl;
-    document.getElementById(barId).style.width = Math.min(100,currentDl/10)+'%';
+    document.getElementById(barId).style.width = Math.min(100, Math.log10(1+currentDl)/Math.log10(201)*100)+'%';
     setProgress(progressStart + pct*(progressEnd-progressStart));
     if(performance.now() >= end) break;
   }
@@ -331,7 +332,7 @@ async function measureUpload(url, ulId, barId, progressStart, progressEnd) {
     const pct = Math.min(1, elapsed/TEST_DURATION);
     const currentUl = parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
     document.getElementById(ulId).textContent = currentUl;
-    document.getElementById(barId).style.width = Math.min(100,currentUl/10)+'%';
+    document.getElementById(barId).style.width = Math.min(100, Math.log10(1+currentUl)/Math.log10(201)*100)+'%';
     setProgress(progressStart + pct*(progressEnd-progressStart));
     if(performance.now() >= end) break;
   }
@@ -359,6 +360,22 @@ async function measureCF() {
   setBadge('badge1','done');
 }
 
+async function measurePacketLoss(url, count=20) {
+  let received = 0;
+  const requests = [];
+  for(let i=0;i<count;i++){
+    requests.push(
+      fetch(url+'?_='+Date.now()+i,{cache:'no-store'})
+        .then(()=>{ received++; })
+        .catch(()=>{})
+    );
+  }
+  await Promise.all(requests);
+  const loss = parseFloat(((count-received)/count*100).toFixed(2));
+  const receivedPct = parseFloat((received/count*100).toFixed(2));
+  return {loss, receivedPct};
+}
+
 async function measureLibreSpeed() {
   setBadge('badge2','running');
   setProgress(62);
@@ -371,11 +388,13 @@ async function measureLibreSpeed() {
     setProgress(65);
     await measureDownload(backend+'/garbage.php?ckSize=100', 'dl2', 'dlBar2', 65, 83);
     setProgress(83);
-    await measureUpload(backend+'/empty.php', 'ul2', 'ulBar2', 83, 98);
-    setProgress(98);
-    document.getElementById('loss2').textContent='0.00';
+    await measureUpload(backend+'/empty.php', 'ul2', 'ulBar2', 83, 96);
+    setProgress(96);
+    const {loss, receivedPct} = await measurePacketLoss(backend+'/empty.php');
+    document.getElementById('loss2').textContent=loss.toFixed(2);
     document.getElementById('packetBarWrap').style.display='flex';
-    document.getElementById('packetText').textContent='Received 100.00%';
+    document.getElementById('packetBarWrap').style.background = loss===0 ? '#1D9E75' : loss<1 ? '#BA7517' : '#A32D2D';
+    document.getElementById('packetText').textContent='Received '+receivedPct.toFixed(2)+'%';
     setScore('score2',ping,jitter);
   } catch(e) {
     document.getElementById('dl2').textContent='שגיאה';
@@ -389,8 +408,11 @@ async function runTest(){
   const btn=document.getElementById('startBtn');
   btn.disabled=true;
   btn.textContent='הבדיקה פועלת...';
-  ['dl1','ul1','ping1','jit1','dl2','ul2','ping2','jit2','loss2','score1','score2'].forEach(id=>{
+  ['dl1','ul1','ping1','jit1','dl2','ul2','ping2','jit2','loss2'].forEach(id=>{
     document.getElementById(id).textContent='—';
+  });
+  ['score1','score2'].forEach(id=>{
+    const el=document.getElementById(id); el.textContent='—'; el.className='score-val';
   });
   document.getElementById('packetBarWrap').style.display='none';
   ['dlBar1','ulBar1','dlBar2','ulBar2'].forEach(id=>{ document.getElementById(id).style.width='0%'; });
