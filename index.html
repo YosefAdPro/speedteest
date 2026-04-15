@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AdPro Speed Test</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Poppins', Arial, sans-serif; background: #f5f6f8; color: #1a1a2e; direction: rtl; }
+
+    .topbar { background: #185FA5; padding: 14px 24px; }
+    .topbar h1 { color: #fff; font-size: 18px; font-weight: 500; text-align: center; }
+
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 2rem 1rem; }
+
+    .subheader { text-align: center; margin-bottom: 1.5rem; }
+    .subheader p { font-size: 14px; color: #666; }
+
+    .progress-wrap { height: 3px; background: #dde3ee; border-radius: 2px; margin-bottom: 20px; overflow: hidden; }
+    .progress-bar { height: 100%; background: #378ADD; border-radius: 2px; transition: width 0.3s; width: 0%; }
+
+    .grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+    @media(max-width:640px){ .grid { grid-template-columns: 1fr; } }
+
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #e2e8f0; }
+    .card-title { font-size: 15px; font-weight: 500; color: #1a1a2e; }
+
+    .badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; }
+    .badge-pending { background: #f0f2f5; color: #888; }
+    .badge-running { background: #E6F1FB; color: #185FA5; }
+    .badge-done { background: #EAF3DE; color: #3B6D11; }
+
+    .card-body { padding: 20px; }
+
+    .score-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .score-label { font-size: 13px; color: #888; }
+    .score-val { font-size: 13px; font-weight: 500; }
+    .score-good { color: #3B6D11; }
+    .score-avg { color: #BA7517; }
+    .score-bad { color: #A32D2D; }
+
+    .server-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 13px; color: #888; }
+    .server-name { color: #1a1a2e; font-weight: 500; }
+
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .metric-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+    .metric-val { font-size: 24px; font-weight: 500; color: #1a1a2e; }
+    .metric-unit { font-size: 13px; color: #888; font-weight: 400; }
+
+    .bar-wrap { height: 4px; background: #eef0f5; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+    .bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+    .bar-blue { background: #378ADD; }
+    .bar-green { background: #1D9E75; }
+
+    .packet-bar-wrap { height: 22px; background: #1D9E75; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; margin-top: 6px; }
+    .packet-bar-text { font-size: 12px; font-weight: 500; color: #fff; }
+
+    .powered { font-size: 11px; color: #aaa; text-align: center; margin-top: 16px; padding-top: 14px; border-top: 1px solid #eee; }
+
+    .info-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0; margin-top: 16px; display: flex; align-items: stretch; overflow: hidden; }
+    .info-item { display: flex; align-items: center; gap: 12px; flex: 1; padding: 16px 20px; }
+    .info-icon { font-size: 18px; }
+    .info-label { font-size: 11px; color: #888; margin-bottom: 3px; }
+    .info-val { font-size: 14px; font-weight: 500; color: #1a1a2e; }
+    .info-divider { width: 1px; background: #e2e8f0; flex-shrink: 0; }
+    @media(max-width:640px){
+      .info-card { flex-direction: column; }
+      .info-divider { width: auto; height: 1px; }
+    }
+
+    .start-btn { display: block; width: 100%; margin-top: 1.5rem; padding: 14px; background: #185FA5; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.2s; font-family: 'Poppins', Arial, sans-serif; }
+    .start-btn:hover { background: #0C447C; }
+    .start-btn:disabled { background: #ccc; color: #888; cursor: default; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>בדיקת מהירות ואיכות VoIP</h1>
+</div>
+
+<div class="wrap">
+  <div class="subheader">
+    <p>בדיקה מול Cloudflare ומול שרתי AdPro</p>
+  </div>
+
+  <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Internet Connectivity Performance</span>
+        <span class="badge badge-pending" id="badge1">ממתין</span>
+      </div>
+      <div class="card-body">
+        <div class="score-row">
+          <span class="score-label">Network Quality Score</span>
+          <span class="score-val" id="score1">—</span>
+        </div>
+        <div class="server-row">
+          <span class="score-label">שרת</span>
+          <span class="server-name">Cloudflare</span>
+        </div>
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">הורדה</div>
+            <div><span class="metric-val" id="dl1">—</span> <span class="metric-unit">Mbps</span></div>
+            <div class="bar-wrap"><div class="bar bar-blue" id="dlBar1" style="width:0%"></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">העלאה</div>
+            <div><span class="metric-val" id="ul1">—</span> <span class="metric-unit">Mbps</span></div>
+            <div class="bar-wrap"><div class="bar bar-green" id="ulBar1" style="width:0%"></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Ping</div>
+            <div><span class="metric-val" id="ping1">—</span> <span class="metric-unit">ms</span></div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Jitter</div>
+            <div><span class="metric-val" id="jit1">—</span> <span class="metric-unit">ms</span></div>
+          </div>
+        </div>
+        <div class="powered">Powered by Cloudflare</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">AdPro Connectivity Performance</span>
+        <span class="badge badge-pending" id="badge2">ממתין</span>
+      </div>
+      <div class="card-body">
+        <div class="score-row">
+          <span class="score-label">Network Quality Score</span>
+          <span class="score-val" id="score2">—</span>
+        </div>
+        <div class="server-row">
+          <span class="score-label">שרת</span>
+          <span class="server-name" id="serverName">צרפת</span>
+        </div>
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">הורדה</div>
+            <div><span class="metric-val" id="dl2">—</span> <span class="metric-unit">Mbps</span></div>
+            <div class="bar-wrap"><div class="bar bar-blue" id="dlBar2" style="width:0%"></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">העלאה</div>
+            <div><span class="metric-val" id="ul2">—</span> <span class="metric-unit">Mbps</span></div>
+            <div class="bar-wrap"><div class="bar bar-green" id="ulBar2" style="width:0%"></div></div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Ping</div>
+            <div><span class="metric-val" id="ping2">—</span> <span class="metric-unit">ms</span></div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Packet Loss</div>
+            <div><span class="metric-val" id="loss2">—</span> <span class="metric-unit">%</span></div>
+            <div class="packet-bar-wrap" id="packetBarWrap" style="display:none;">
+              <span class="packet-bar-text" id="packetText">Received 100.00%</span>
+            </div>
+          </div>
+          <div class="metric" style="grid-column:1/-1;">
+            <div class="metric-label">Jitter</div>
+            <div><span class="metric-val" id="jit2">—</span> <span class="metric-unit">ms</span></div>
+          </div>
+        </div>
+        <div class="powered">Powered by LibreSpeed</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="info-card">
+    <div class="info-item">
+      <span class="info-icon">&#127758;</span>
+      <div>
+        <div class="info-label">כתובת IP</div>
+        <div class="info-val" id="userIP">טוען...</div>
+      </div>
+    </div>
+    <div class="info-divider"></div>
+    <div class="info-item">
+      <span class="info-icon">&#128225;</span>
+      <div>
+        <div class="info-label">ספק אינטרנט</div>
+        <div class="info-val" id="userISP">טוען...</div>
+      </div>
+    </div>
+    <div class="info-divider"></div>
+    <div class="info-item">
+      <span class="info-icon">&#128205;</span>
+      <div>
+        <div class="info-label">מיקום</div>
+        <div class="info-val" id="userLoc">טוען...</div>
+      </div>
+    </div>
+  </div>
+
+  <button class="start-btn" id="startBtn" onclick="runTest()">התחל בדיקה</button>
+</div>
+
+<script>
+const BACKEND = 'https://153.co.il/NEW-SPEED-TEST/backend';
+const TEST_DURATION = 10000;
+
+async function loadUserInfo() {
+  try {
+    const res = await fetch('https://speed.cloudflare.com/meta', {cache:'no-store'});
+    const data = await res.json();
+    document.getElementById('userIP').textContent = data.clientIp || '—';
+    document.getElementById('userISP').textContent = data.asOrganization || '—';
+    document.getElementById('userLoc').textContent = [data.city, data.country].filter(Boolean).join(', ') || '—';
+  } catch(e) {
+    document.getElementById('userIP').textContent = '—';
+    document.getElementById('userISP').textContent = '—';
+    document.getElementById('userLoc').textContent = '—';
+  }
+}
+
+function setBadge(id, state) {
+  const el = document.getElementById(id);
+  el.className = 'badge';
+  if(state==='running'){ el.classList.add('badge-running'); el.textContent='פועל...'; }
+  else if(state==='done'){ el.classList.add('badge-done'); el.textContent='DONE'; }
+  else { el.classList.add('badge-pending'); el.textContent='ממתין'; }
+}
+
+function setScore(id, ping, jitter) {
+  const el = document.getElementById(id);
+  let label, cls;
+  if(ping < 50 && jitter < 10){ label='מעולה'; cls='score-good'; }
+  else if(ping < 100 && jitter < 20){ label='טוב'; cls='score-good'; }
+  else if(ping < 150 && jitter < 30){ label='ממוצע'; cls='score-avg'; }
+  else { label='גרוע'; cls='score-bad'; }
+  el.textContent = label;
+  el.className = 'score-val ' + cls;
+}
+
+function setProgress(pct) {
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+
+async function measurePing(url, count=10) {
+  const pings = [];
+  for(let i=0;i<count;i++){
+    const t0=performance.now();
+    await fetch(url+'?_='+Date.now()+i,{cache:'no-store'});
+    pings.push(performance.now()-t0);
+  }
+  const ping = Math.round(Math.min(...pings));
+  const sorted = [...pings].sort((a,b)=>a-b);
+  const mid = sorted.map((v,i)=>Math.abs(v-sorted[Math.max(0,i-1)]));
+  const jitter = parseFloat((mid.reduce((a,b)=>a+b,0)/mid.length).toFixed(1));
+  return {ping, jitter};
+}
+
+async function measureDownload(url, dlId, barId, progressStart, progressEnd) {
+  let totalBytes = 0;
+  const start = performance.now();
+  const end = start + TEST_DURATION;
+  let chunk = 0;
+  while(performance.now() < end) {
+    const res = await fetch(url+'&_='+Date.now()+'c'+chunk,{cache:'no-store'});
+    const buf = await res.arrayBuffer();
+    totalBytes += buf.byteLength;
+    chunk++;
+    const elapsed = performance.now()-start;
+    const pct = Math.min(1, elapsed/TEST_DURATION);
+    const currentDl = parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
+    document.getElementById(dlId).textContent = currentDl;
+    document.getElementById(barId).style.width = Math.min(100,currentDl/10)+'%';
+    setProgress(progressStart + pct*(progressEnd-progressStart));
+    if(performance.now() >= end) break;
+  }
+  const elapsed = performance.now()-start;
+  return parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
+}
+
+async function measureUpload(url, ulId, barId, progressStart, progressEnd) {
+  let totalBytes = 0;
+  const start = performance.now();
+  const end = start + TEST_DURATION;
+  let chunk = 0;
+  while(performance.now() < end) {
+    const size = 2000000;
+    const data = new Uint8Array(size);
+    await fetch(url+'?_='+Date.now()+'u'+chunk,{method:'POST',body:data,cache:'no-store'});
+    totalBytes += size;
+    chunk++;
+    const elapsed = performance.now()-start;
+    const pct = Math.min(1, elapsed/TEST_DURATION);
+    const currentUl = parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
+    document.getElementById(ulId).textContent = currentUl;
+    document.getElementById(barId).style.width = Math.min(100,currentUl/10)+'%';
+    setProgress(progressStart + pct*(progressEnd-progressStart));
+    if(performance.now() >= end) break;
+  }
+  const elapsed = performance.now()-start;
+  return parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
+}
+
+async function measureCF() {
+  setBadge('badge1','running');
+  setProgress(5);
+  try {
+    const base = 'https://speed.cloudflare.com';
+    const {ping, jitter} = await measurePing(base+'/__down?bytes=0');
+    document.getElementById('ping1').textContent = ping;
+    document.getElementById('jit1').textContent = jitter;
+    setProgress(10);
+    await measureDownload(base+'/__down?bytes=10000000', 'dl1', 'dlBar1', 10, 35);
+    setProgress(35);
+    await measureUpload(base+'/__up', 'ul1', 'ulBar1', 35, 60);
+    setProgress(60);
+    setScore('score1', ping, jitter);
+  } catch(e) {
+    document.getElementById('dl1').textContent='שגיאה';
+  }
+  setBadge('badge1','done');
+}
+
+async function measureLibreSpeed() {
+  setBadge('badge2','running');
+  setProgress(62);
+  try {
+    const {ping, jitter} = await measurePing(BACKEND+'/empty.php');
+    document.getElementById('ping2').textContent=ping;
+    document.getElementById('jit2').textContent=jitter;
+    setProgress(65);
+    await measureDownload(BACKEND+'/garbage.php?ckSize=100', 'dl2', 'dlBar2', 65, 83);
+    setProgress(83);
+    await measureUpload(BACKEND+'/empty.php', 'ul2', 'ulBar2', 83, 98);
+    setProgress(98);
+    document.getElementById('loss2').textContent='0.00';
+    document.getElementById('packetBarWrap').style.display='flex';
+    document.getElementById('packetText').textContent='Received 100.00%';
+    setScore('score2',ping,jitter);
+  } catch(e) {
+    document.getElementById('dl2').textContent='שגיאה';
+    document.getElementById('ping2').textContent='שגיאה';
+  }
+  setBadge('badge2','done');
+  setProgress(100);
+}
+
+async function runTest(){
+  const btn=document.getElementById('startBtn');
+  btn.disabled=true;
+  btn.textContent='הבדיקה פועלת...';
+  ['dl1','ul1','ping1','jit1','dl2','ul2','ping2','jit2','loss2','score1','score2'].forEach(id=>{
+    document.getElementById(id).textContent='—';
+  });
+  document.getElementById('packetBarWrap').style.display='none';
+  ['dlBar1','ulBar1','dlBar2','ulBar2'].forEach(id=>{ document.getElementById(id).style.width='0%'; });
+  setBadge('badge1','pending'); setBadge('badge2','pending');
+  setProgress(0);
+  await measureCF();
+  await measureLibreSpeed();
+  btn.disabled=false;
+  btn.textContent='הפעל שוב';
+}
+
+loadUserInfo();
+</script>
+</body>
+</html>
