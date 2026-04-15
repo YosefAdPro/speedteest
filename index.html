@@ -293,21 +293,39 @@ async function measurePing(url, count=10) {
 async function measureDownload(url, dlId, barId, progressStart, progressEnd) {
   let totalBytes = 0;
   const start = performance.now();
-  const end = start + TEST_DURATION;
-  let chunk = 0;
-  while(performance.now() < end) {
-    const res = await fetch(url+'&_='+Date.now()+'c'+chunk, {cache:'no-store'});
-    const buf = await res.arrayBuffer();
-    totalBytes += buf.byteLength;
-    chunk++;
+  const PARALLEL = 4;
+  let active = true;
+
+  setTimeout(() => { active = false; }, TEST_DURATION);
+
+  function updateUI() {
     const elapsed = performance.now()-start;
     const pct = Math.min(1, elapsed/TEST_DURATION);
     const currentDl = parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
     document.getElementById(dlId).textContent = currentDl;
     document.getElementById(barId).style.width = speedToBar(currentDl)+'%';
     setProgress(progressStart + pct*(progressEnd-progressStart));
-    if(performance.now() >= end) break;
   }
+
+  async function downloadStream(idx) {
+    while(active) {
+      try {
+        const res = await fetch(url+'&_='+Date.now()+'s'+idx, {cache:'no-store'});
+        const reader = res.body.getReader();
+        while(active) {
+          const {done, value} = await reader.read();
+          if(done) break;
+          totalBytes += value.byteLength;
+          updateUI();
+        }
+        reader.cancel();
+      } catch(e) { if(active) await new Promise(r=>setTimeout(r,100)); }
+    }
+  }
+
+  const workers = Array.from({length: PARALLEL}, (_,i) => downloadStream(i));
+  await Promise.all(workers);
+
   const elapsed = performance.now()-start;
   return parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
 }
@@ -315,22 +333,38 @@ async function measureDownload(url, dlId, barId, progressStart, progressEnd) {
 async function measureUpload(url, ulId, barId, progressStart, progressEnd) {
   let totalBytes = 0;
   const start = performance.now();
-  const end = start + TEST_DURATION;
-  let chunk = 0;
-  while(performance.now() < end) {
-    const size = 2000000;
-    const data = new Uint8Array(size);
-    await fetch(url+'?_='+Date.now()+'u'+chunk, {method:'POST', body:data, cache:'no-store'});
-    totalBytes += size;
-    chunk++;
+  const PARALLEL = 4;
+  const CHUNK = 2000000;
+  let active = true;
+
+  setTimeout(() => { active = false; }, TEST_DURATION);
+
+  function updateUI() {
     const elapsed = performance.now()-start;
     const pct = Math.min(1, elapsed/TEST_DURATION);
     const currentUl = parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
     document.getElementById(ulId).textContent = currentUl;
     document.getElementById(barId).style.width = speedToBar(currentUl)+'%';
     setProgress(progressStart + pct*(progressEnd-progressStart));
-    if(performance.now() >= end) break;
   }
+
+  async function uploadWorker(idx) {
+    let sent = 0;
+    while(active) {
+      try {
+        const data = new Uint8Array(CHUNK);
+        const t0 = performance.now();
+        await fetch(url+'?_='+Date.now()+'u'+idx+'_'+sent, {method:'POST', body:data, cache:'no-store'});
+        totalBytes += CHUNK;
+        sent++;
+        updateUI();
+      } catch(e) { if(active) await new Promise(r=>setTimeout(r,100)); }
+    }
+  }
+
+  const workers = Array.from({length: PARALLEL}, (_,i) => uploadWorker(i));
+  await Promise.all(workers);
+
   const elapsed = performance.now()-start;
   return parseFloat(((totalBytes*8)/(elapsed/1000*1e6)).toFixed(2));
 }
