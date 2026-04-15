@@ -17,6 +17,11 @@
     .subheader { text-align: center; margin-bottom: 1.5rem; }
     .subheader p { font-size: 14px; color: #666; }
 
+    .server-select-wrap { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 1.5rem; }
+    .server-select-wrap label { font-size: 13px; color: #666; font-weight: 500; }
+    .server-select-wrap select { font-family: 'Poppins', Arial, sans-serif; font-size: 13px; padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #1a1a2e; cursor: pointer; outline: none; }
+    .server-select-wrap select:focus { border-color: #378ADD; }
+
     .progress-wrap { height: 3px; background: #dde3ee; border-radius: 2px; margin-bottom: 20px; overflow: hidden; }
     .progress-bar { height: 100%; background: #378ADD; border-radius: 2px; transition: width 0.3s; width: 0%; }
 
@@ -86,6 +91,14 @@
     <p>בדיקה מול Cloudflare ומול שרתי AdPro</p>
   </div>
 
+  <div class="server-select-wrap">
+    <label>בחר שרת AdPro:</label>
+    <select id="serverSelect" onchange="onServerChange()">
+      <option value="fr1">🇫🇷 צרפת — FR1 (153.co.il)</option>
+      <option value="rbx1">🇫🇷 צרפת — RBX1 (fr-gra-speedtest.adpronet.com)</option>
+    </select>
+  </div>
+
   <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
 
   <div class="grid">
@@ -140,7 +153,7 @@
         </div>
         <div class="server-row">
           <span class="score-label">שרת</span>
-          <span class="server-name" id="serverName">צרפת</span>
+          <span class="server-name" id="serverName">FR1 — צרפת</span>
         </div>
         <div class="metrics">
           <div class="metric">
@@ -205,8 +218,30 @@
 </div>
 
 <script>
-const BACKEND = 'https://153.co.il/NEW-SPEED-TEST/backend';
+const SERVERS = {
+  fr1: {
+    name: 'FR1 — צרפת',
+    backend: 'https://153.co.il/NEW-SPEED-TEST/backend'
+  },
+  rbx1: {
+    name: 'RBX1 — צרפת',
+    backend: 'https://fr-gra-speedtest.adpronet.com/backend'
+  }
+};
+
+let currentServer = 'fr1';
 const TEST_DURATION = 10000;
+
+function onServerChange() {
+  currentServer = document.getElementById('serverSelect').value;
+  document.getElementById('serverName').textContent = SERVERS[currentServer].name;
+  ['dl2','ul2','ping2','jit2','loss2','score2'].forEach(id=>{
+    document.getElementById(id).textContent='—';
+  });
+  document.getElementById('packetBarWrap').style.display='none';
+  ['dlBar2','ulBar2'].forEach(id=>{ document.getElementById(id).style.width='0%'; });
+  setBadge('badge2','pending');
+}
 
 async function loadUserInfo() {
   try {
@@ -327,14 +362,16 @@ async function measureCF() {
 async function measureLibreSpeed() {
   setBadge('badge2','running');
   setProgress(62);
+  const backend = SERVERS[currentServer].backend;
+  document.getElementById('serverName').textContent = SERVERS[currentServer].name;
   try {
-    const {ping, jitter} = await measurePing(BACKEND+'/empty.php');
+    const {ping, jitter} = await measurePing(backend+'/empty.php');
     document.getElementById('ping2').textContent=ping;
     document.getElementById('jit2').textContent=jitter;
     setProgress(65);
-    await measureDownload(BACKEND+'/garbage.php?ckSize=100', 'dl2', 'dlBar2', 65, 83);
+    await measureDownload(backend+'/garbage.php?ckSize=100', 'dl2', 'dlBar2', 65, 83);
     setProgress(83);
-    await measureUpload(BACKEND+'/empty.php', 'ul2', 'ulBar2', 83, 98);
+    await measureUpload(backend+'/empty.php', 'ul2', 'ulBar2', 83, 98);
     setProgress(98);
     document.getElementById('loss2').textContent='0.00';
     document.getElementById('packetBarWrap').style.display='flex';
